@@ -32,6 +32,9 @@ EMAIL_PATTERN = re.compile(
     r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?"
     r"(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$"
 )
+NAME_PATTERN = re.compile(
+    r"^[А-Яа-яЁёӨөҮү]+(?:[ -][А-Яа-яЁёӨөҮү]+)*$"
+)
 ADMIN_PASSWORD_HASH = generate_password_hash(ADMIN_PASSWORD)
 REGISTRATION_MIGRATION_COLUMNS = {
     "activity_interests": "TEXT NOT NULL DEFAULT '[]'",
