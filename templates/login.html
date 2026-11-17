@@ -3,51 +3,64 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Админ нэвтрэх</title>
+  <meta name="theme-color" content="#153C36">
+  <title>Volunteer Connect — Админ нэвтрэх</title>
   <style>
-    * { box-sizing: border-box; }
-    body {
-      margin: 0; min-height: 100vh; padding: 20px;
-      display: grid; place-items: center;
-      background: #f3f6f8; color: #263746; font-family: Arial, sans-serif;
-    }
-    .card {
-      width: 100%; max-width: 420px; padding: 34px;
-      background: white; border: 1px solid #dce5eb; border-radius: 16px;
-      box-shadow: 0 16px 40px #18324b14;
-    }
-    h1 { color: #18324b; }
-    label { display: block; margin: 18px 0 7px; font-weight: 600; }
-    input {
-      width: 100%; padding: 12px; border: 1px solid #dce5eb;
-      border-radius: 8px; font-size: 15px;
-    }
-    button {
-      width: 100%; margin-top: 22px; padding: 13px; border: 0;
-      border-radius: 8px; background: #18324b; color: white;
-      font-weight: bold; cursor: pointer;
-    }
-    .error { padding: 12px; border-radius: 8px; background: #fff4f3; color: #a53d3d; }
-    a { color: #278b83; }
+    :root { --primary:#153C36; --secondary:#A8E5BD; --bg:#F7FAF8; --white:#fff; --text:#20332f; --muted:#667770; --line:#dce8e1; --danger:#a33b32; --danger-bg:#fff1ef; }
+    * { box-sizing:border-box; }
+    body { min-height:100vh; display:grid; place-items:center; margin:0; padding:22px; background:radial-gradient(circle at 15% 15%,#e5f6eb 0,transparent 34%),var(--bg); color:var(--text); font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif; }
+    a,button,input { font:inherit; }
+    a:focus-visible,button:focus-visible,input:focus-visible { outline:3px solid #65b77f; outline-offset:3px; }
+    .login-layout { width:min(940px,100%); min-height:550px; display:grid; grid-template-columns:1fr 1fr; overflow:hidden; border:1px solid var(--line); border-radius:26px; background:var(--white); box-shadow:0 25px 70px rgba(21,60,54,.12); }
+    .brand-panel { position:relative; display:flex; flex-direction:column; justify-content:space-between; overflow:hidden; padding:clamp(28px,5vw,52px); background:var(--primary); color:white; }
+    .brand-panel::after { position:absolute; right:-100px; bottom:-145px; width:360px; height:360px; border:1px solid rgba(168,229,189,.28); border-radius:50%; box-shadow:0 0 0 34px rgba(168,229,189,.08),0 0 0 70px rgba(168,229,189,.05); content:""; }
+    .brand { position:relative; z-index:1; display:flex; align-items:center; gap:11px; font-size:16px; font-weight:850; }
+    .brand-icon { width:40px; height:40px; display:grid; place-items:center; border-radius:13px; background:var(--secondary); color:var(--primary); font-size:21px; }
+    .brand-copy { position:relative; z-index:1; max-width:350px; margin-block:auto; padding:48px 0; }
+    .brand-copy .eyebrow { color:var(--secondary); font-size:11px; font-weight:800; letter-spacing:.15em; }
+    .brand-copy h1 { margin:12px 0; font-size:clamp(29px,4vw,43px); line-height:1.12; letter-spacing:-.04em; }
+    .brand-copy p { margin:0; color:#d5e5dc; line-height:1.7; }
+    .brand-footer { position:relative; z-index:1; color:#c0d8ca; font-size:12px; }
+    .form-panel { display:flex; align-items:center; padding:clamp(25px,5vw,54px); }
+    .form-content { width:100%; max-width:360px; margin:auto; }
+    .form-content h2 { margin:0 0 8px; color:var(--primary); font-size:29px; letter-spacing:-.04em; }
+    .intro { margin:0 0 27px; color:var(--muted); font-size:14px; }
+    label { display:block; margin:17px 0 7px; color:var(--primary); font-size:13px; font-weight:750; }
+    input { width:100%; min-height:49px; padding:12px 13px; border:1px solid #cddbd2; border-radius:11px; background:white; color:var(--text); }
+    input::placeholder { color:#8a9890; }
+    input:focus { border-color:#4c9d6a; }
+    .button { width:100%; min-height:48px; margin-top:22px; border:0; border-radius:11px; background:var(--primary); color:white; font-weight:750; cursor:pointer; transition:background .18s ease,transform .18s ease; }
+    .button:hover { background:#24574e; transform:translateY(-1px); }
+    .message { margin:0 0 17px; padding:13px 14px; border:1px solid #f1cbc6; border-radius:11px; background:var(--danger-bg); color:var(--danger); font-size:14px; }
+    .back-link { display:inline-block; margin-top:22px; color:var(--muted); font-size:13px; text-decoration:none; }
+    .back-link:hover { color:var(--primary); text-decoration:underline; }
+    @media(max-width:680px) { body{padding:14px}.login-layout{max-width:470px;min-height:auto;grid-template-columns:1fr;border-radius:20px}.brand-panel{min-height:220px;padding:24px}.brand-copy{padding:24px 0 10px}.brand-copy h1{font-size:29px}.brand-footer{display:none}.brand-panel::after{right:-170px;bottom:-220px;width:300px;height:300px}.form-panel{padding:28px 24px 32px} }
+    @media(prefers-reduced-motion:reduce) { *,*::before,*::after{transition-duration:.01ms!important} }
   </style>
 </head>
 <body>
-  <main class="card">
-    <h1>Админ нэвтрэх</h1>
-    {% for category, message in get_flashed_messages(with_categories=true) %}
-      <p class="{{ category }}">{{ message }}</p>
-    {% endfor %}
-    <form method="post">
-      <label for="username">Нэвтрэх нэр</label>
-      <input id="username" name="username" autocomplete="username" required>
-
-      <label for="password">Нууц үг</label>
-      <input id="password" name="password" type="password"
-             autocomplete="current-password" required>
-
-      <button type="submit">Нэвтрэх</button>
-    </form>
-    <p><a href="{{ url_for('index') }}">Бүртгэлийн хуудас руу буцах</a></p>
+  <main class="login-layout">
+    <section class="brand-panel" aria-label="Volunteer Connect танилцуулга">
+      <div class="brand"><span class="brand-icon" aria-hidden="true">♥</span><span>Volunteer Connect</span></div>
+      <div class="brand-copy"><p class="eyebrow">САЙН ҮЙЛСИЙГ ХАМТДАА</p><h1>Сайн үйлсийг хамтдаа бүтээцгээе.</h1><p>Сайн дурын оролцоо бүр илүү халуун дулаан, нэгдмэл нийгмийг бүтээнэ.</p></div>
+      <div class="brand-footer">Сайн дурын ажилтны бүртгэлийн систем</div>
+    </section>
+    <section class="form-panel" aria-labelledby="login-heading">
+      <div class="form-content">
+        <p class="eyebrow" style="color:#4d806a;font-size:11px;font-weight:850;letter-spacing:.13em">АДМИН ХАНДАЛТ</p>
+        <h2 id="login-heading">Тавтай морил</h2>
+        <p class="intro">Удирдлагын самбарт нэвтрэх мэдээллээ оруулна уу.</p>
+        {% for category, message in get_flashed_messages(with_categories=true) %}<div class="message" role="alert">{{ message }}</div>{% endfor %}
+        <form method="post" action="{{ request.full_path if request.query_string else url_for('admin_login') }}">
+          <label for="username">Нэвтрэх нэр</label>
+          <input id="username" name="username" type="text" autocomplete="username" placeholder="Нэвтрэх нэрээ оруулна уу" required autofocus>
+          <label for="password">Нууц үг</label>
+          <input id="password" name="password" type="password" autocomplete="current-password" placeholder="Нууц үгээ оруулна уу" required>
+          <button class="button" type="submit">Нэвтрэх <span aria-hidden="true">→</span></button>
+        </form>
+        <a class="back-link" href="{{ url_for('index') }}">← Бүртгэлийн нүүр хуудас руу буцах</a>
+      </div>
+    </section>
   </main>
 </body>
 </html>
