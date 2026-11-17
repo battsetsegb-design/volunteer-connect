@@ -178,13 +178,18 @@ def index():
             errors.append("Овгоо оруулна уу.")
         elif len(values["last_name"]) > 100:
             errors.append("Овог 100 тэмдэгтээс урт байж болохгүй.")
+        elif not NAME_PATTERN.fullmatch(values["last_name"]):
+            errors.append("Овгийг зөвхөн Монгол кирилл үсгээр оруулна уу.")
+
         if not values["first_name"]:
             errors.append("Нэрээ оруулна уу.")
         elif len(values["first_name"]) > 100:
             errors.append("Нэр 100 тэмдэгтээс урт байж болохгүй.")
-        digits = re.sub(r"\D", "", values["phone"])
-        if not re.fullmatch(r"[0-9+()\-\s]{6,20}", values["phone"]) or not 6 <= len(digits) <= 15:
-            errors.append("Утасны дугаараа зөв оруулна уу.")
+        elif not NAME_PATTERN.fullmatch(values["first_name"]):
+            errors.append("Нэрийг зөвхөн Монгол кирилл үсгээр оруулна уу.")
+
+        if not re.fullmatch(r"[0-9]{6,15}", values["phone"]):
+            errors.append("Утасны дугаарыг зөвхөн 6-15 цифрээр оруулна уу.")
         if len(values["email"]) > 254 or not EMAIL_PATTERN.fullmatch(values["email"]):
             errors.append("Имэйл хаягийн форматаа шалгана уу. Жишээ: ner@company.mn")
         selected = values["activity_interests"]
