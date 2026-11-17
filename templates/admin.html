@@ -140,7 +140,7 @@
             <tbody>
               {% for row in registrations %}
                 <tr>
-                  <td>{{ row.id }}</td><td>{{ row.last_name }}</td><td>{{ row.first_name }}</td><td>{{ row.phone }}</td><td>{{ row.email }}</td>
+                  <td>{{ loop.index }}</td><td>{{ row.last_name }}</td><td>{{ row.first_name }}</td><td>{{ row.phone }}</td><td>{{ row.email }}</td>
                   <td class="interest-cell">{{ row.activity_interests or '[]' }}</td><td>{{ row.availability or '—' }}</td><td>{{ row.created_at }}</td>
                   <td><div class="row-actions">
                     <a class="button button-secondary small-button" href="{{ url_for('admin_registration_detail', registration_id=row.id) }}">Дэлгэрэнгүй</a>
