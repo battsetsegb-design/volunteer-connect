@@ -1,4 +1,5 @@
 import io
+import json
 import os
 import re
 import secrets
@@ -49,6 +50,23 @@ REGISTRATION_MIGRATION_COLUMNS = {
     "privacy_consent": "INTEGER NOT NULL DEFAULT 0",
     "consent_at": "TEXT",
 }
+
+ACTIVITY_CHOICES = (
+    "Байгаль орчин, мод тарих",
+    "Хүүхэд, боловсрол",
+    "Ахмад настанд туслах",
+    "Орчны цэвэрлэгээ",
+    "Амьтны хамгаалал",
+    "Бусад",
+)
+
+AVAILABILITY_CHOICES = (
+    "Ажлын өдрийн өглөө",
+    "Ажлын өдрийн өдөр",
+    "Ажлын өдрийн орой",
+    "Амралтын өдөр",
+    "Цагийн хуваарь уян хатан",
+)
 
 
 def _connect_existing_database():
@@ -151,6 +169,12 @@ def get_db():
     return _connect_existing_database()
 
 
+def new_registration_token():
+    token = secrets.token_urlsafe(32)
+    session["registration_token"] = token
+    return token
+
+
 def admin_required():
     if not session.get("is_admin"):
         return redirect(url_for("admin_login", next=request.path))
@@ -159,7 +183,16 @@ def admin_required():
 
 @app.route("/", methods=["GET", "POST"])
 def index():
-    values = {"last_name": "", "first_name": "", "phone": "", "email": ""}
+    values = {
+        "last_name": "",
+        "first_name": "",
+        "phone": "",
+        "email": "",
+        "activity_interests": [],
+        "availability": "",
+        "motivation": "",
+        "privacy_consent": False,
+    }
     errors = []
 
     if request.method == "POST":
@@ -168,12 +201,31 @@ def index():
             "first_name": request.form.get("first_name", "").strip(),
             "phone": request.form.get("phone", "").strip(),
             "email": request.form.get("email", "").strip(),
+            "activity_interests": request.form.getlist("activity_interests"),
+            "availability": request.form.get("availability", "").strip(),
+            "motivation": request.form.get("motivation", "").strip(),
+            "privacy_consent": request.form.get("privacy_consent") == "yes",
         }
+
+        submitted_token = request.form.get("registration_token", "")
+        expected_token = session.pop("registration_token", None)
+        valid_token = bool(
+            submitted_token
+            and expected_token
+            and secrets.compare_digest(submitted_token, expected_token)
+        )
+        if not valid_token:
+            errors.append("Маягтыг дахин илгээхээс өмнө хуудсаа шинэчилнэ үү.")
 
         if not values["last_name"]:
             errors.append("Овгоо оруулна уу.")
+        elif len(values["last_name"]) > 100:
+            errors.append("Овог 100 тэмдэгтээс урт байж болохгүй.")
+
         if not values["first_name"]:
             errors.append("Нэрээ оруулна уу.")
+        elif len(values["first_name"]) > 100:
+            errors.append("Нэр 100 тэмдэгтээс урт байж болохгүй.")
 
         digits = re.sub(r"\D", "", values["phone"])
         if not re.fullmatch(r"[0-9+()\-\s]{6,20}", values["phone"]) or not (
@@ -181,17 +233,42 @@ def index():
         ):
             errors.append("Утасны дугаараа зөв оруулна уу.")
 
-        if not EMAIL_PATTERN.fullmatch(values["email"]):
+        if (
+            len(values["email"]) > 254
+            or not EMAIL_PATTERN.fullmatch(values["email"])
+        ):
             errors.append("Имэйл хаягийн форматаа шалгана уу. Жишээ: ner@company.mn")
 
+        selected_interests = values["activity_interests"]
+        if not selected_interests:
+            errors.append("Сонирхож буй ажлын чиглэлээс дор хаяж нэгийг сонгоно уу.")
+        elif any(choice not in ACTIVITY_CHOICES for choice in selected_interests):
+            errors.append("Сонгосон ажлын чиглэлийн утга буруу байна.")
+        elif len(selected_interests) != len(set(selected_interests)):
+            errors.append("Ажлын чиглэлийг давхар сонгож болохгүй.")
+
+        if values["availability"] not in AVAILABILITY_CHOICES:
+            errors.append("Оролцох боломжтой цагаа сонгоно уу.")
+
+        if not values["motivation"]:
+            errors.append("Сайн дурын ажил хийх болсон шалтгаанаа бичнэ үү.")
+        elif len(values["motivation"]) > 2000:
+            errors.append("Шалтгаан 2000 тэмдэгтээс урт байж болохгүй.")
+
+        if not values["privacy_consent"]:
+            errors.append("Хувийн мэдээлэл ашиглах зөвшөөрөл өгөх шаардлагатай.")
+
         if not errors:
+            consent_at = datetime.now().astimezone().isoformat(timespec="seconds")
             try:
                 with get_db() as connection:
                     connection.execute(
                         """
-                        INSERT INTO registrations
-                            (last_name, first_name, phone, email, created_at)
-                        VALUES (?, ?, ?, ?, ?)
+                        INSERT INTO registrations (
+                            last_name, first_name, phone, email, created_at,
+                            activity_interests, availability, motivation,
+                            privacy_consent, consent_at
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """,
                         (
                             values["last_name"],
@@ -199,18 +276,28 @@ def index():
                             values["phone"],
                             values["email"],
                             datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                            json.dumps(selected_interests, ensure_ascii=False),
+                            values["availability"],
+                            values["motivation"],
+                            1,
+                            consent_at,
                         ),
                     )
                 return redirect(url_for("index", success="1"))
             except sqlite3.Error:
                 app.logger.exception("Бүртгэлийг SQLite-д хадгалж чадсангүй.")
-                errors.append("Бүртгэх үед алдаа гарлаа. Дахин оролдоно уу.")
+                errors.append("Бүртгэх үед алдаа гарлаа. Таны оруулсан мэдээллийг хадгалсангүй.")
 
+    # POST алдаатай байсан ч хэрэглэгч засварлаад дахин илгээх шинэ token олгоно.
+    registration_token = new_registration_token()
     return render_template(
         "index.html",
         values=values,
         errors=errors,
         success=request.args.get("success") == "1",
+        activity_choices=ACTIVITY_CHOICES,
+        availability_choices=AVAILABILITY_CHOICES,
+        registration_token=registration_token,
     )
 
 

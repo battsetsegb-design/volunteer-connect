@@ -20,7 +20,7 @@
 
     .card {
       width: 100%;
-      max-width: 600px;
+      max-width: 680px;
       padding: 36px;
       background: #fff;
       border: 1px solid #dce5eb;
@@ -80,24 +80,55 @@
       color: #718096 !important;
     }
 
-    label {
+    label, legend {
       display: block;
       margin: 16px 0 7px;
       color: #18324b;
       font-weight: 600;
     }
 
-    input {
+    input:not([type="checkbox"]), select, textarea {
       width: 100%;
       padding: 12px;
       border: 1px solid #dce5eb;
       border-radius: 8px;
+      background: #fff;
+      color: #263746;
+      font: inherit;
       font-size: 15px;
     }
 
-    input:focus {
+    textarea { min-height: 120px; resize: vertical; }
+
+    input:focus, select:focus, textarea:focus {
       outline: 2px solid #278b8350;
       border-color: #278b83;
+    }
+
+    fieldset {
+      margin: 16px 0 0;
+      padding: 0;
+      border: 0;
+    }
+
+    fieldset legend { margin-bottom: 8px; }
+
+    .check-option {
+      display: flex;
+      align-items: flex-start;
+      gap: 9px;
+      margin: 9px 0;
+      color: #465967;
+      font-weight: normal;
+      line-height: 1.45;
+    }
+
+    .check-option input[type="checkbox"] {
+      width: 17px;
+      height: 17px;
+      margin: 2px 0 0;
+      accent-color: #278b83;
+      flex: 0 0 auto;
     }
 
     .hint {
@@ -193,25 +224,65 @@
       </div>
     {% endif %}
 
-    <form method="post">
+    <form method="post" accept-charset="UTF-8">
+      <input type="hidden" name="registration_token" value="{{ registration_token }}">
+
       <label for="last_name">Овог</label>
       <input id="last_name" name="last_name" type="text"
-             value="{{ values.last_name }}" required maxlength="100">
+             value="{{ values.last_name }}" required maxlength="100" autocomplete="family-name">
 
       <label for="first_name">Нэр</label>
       <input id="first_name" name="first_name" type="text"
-             value="{{ values.first_name }}" required maxlength="100">
+             value="{{ values.first_name }}" required maxlength="100" autocomplete="given-name">
 
       <label for="phone">Утасны дугаар</label>
       <input id="phone" name="phone" type="tel"
              value="{{ values.phone }}" placeholder="+976 9911 2233"
-             required maxlength="20">
+             required maxlength="20" autocomplete="tel" inputmode="tel">
 
-      <label for="email">Имэйл хаяг</label>
+      <label for="email">И-мэйл хаяг</label>
       <input id="email" name="email" type="email"
              value="{{ values.email }}" placeholder="ner@company.mn"
-             required maxlength="254">
+             required maxlength="254" autocomplete="email">
       <small class="hint">Форматын жишээ: ner@company.mn</small>
+
+      <fieldset>
+        <legend>Сонирхож буй сайн дурын ажлын чиглэл (дор хаяж нэгийг сонгоно уу)</legend>
+        {% for choice in activity_choices %}
+          <label class="check-option" for="interest-{{ loop.index }}">
+            <input id="interest-{{ loop.index }}" type="checkbox" name="activity_interests"
+                   value="{{ choice }}" {% if choice in values.activity_interests %}checked{% endif %}>
+            <span>{{ choice }}</span>
+          </label>
+        {% endfor %}
+      </fieldset>
+
+      <label for="availability">Оролцох боломжтой цаг</label>
+      <select id="availability" name="availability" required>
+        <option value="">Цагийн сонголтоо хийнэ үү</option>
+        {% for choice in availability_choices %}
+          <option value="{{ choice }}" {% if values.availability == choice %}selected{% endif %}>
+            {{ choice }}
+          </option>
+        {% endfor %}
+      </select>
+
+      <label for="motivation">Сайн дурын ажил хийх болсон шалтгаан</label>
+      <textarea id="motivation" name="motivation" required maxlength="2000"
+                placeholder="Та яагаад сайн дурын ажилд оролцох хүсэлтэй байгаагаа бичнэ үү.">{{ values.motivation }}</textarea>
+      <small class="hint">2000 тэмдэгт хүртэл.</small>
+
+      <fieldset>
+        <legend>Хувийн мэдээлэл ашиглах зөвшөөрөл</legend>
+        <label class="check-option" for="privacy_consent">
+          <input id="privacy_consent" name="privacy_consent" type="checkbox"
+                 value="yes" required {% if values.privacy_consent %}checked{% endif %}>
+          <span>
+            Миний өгсөн хувийн мэдээллийг сайн дурын ажил, арга хэмжээний талаар
+            надтай холбогдоход ашиглахыг зөвшөөрч байна.
+          </span>
+        </label>
+      </fieldset>
 
       <button type="submit">Сайн дурын ажилтнаар бүртгүүлэх</button>
     </form>
