@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="mn">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Админ нэвтрэх</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; min-height: 100vh; padding: 20px;
+      display: grid; place-items: center;
+      background: #f3f6f8; color: #263746; font-family: Arial, sans-serif;
+    }
+    .card {
+      width: 100%; max-width: 420px; padding: 34px;
+      background: white; border: 1px solid #dce5eb; border-radius: 16px;
+      box-shadow: 0 16px 40px #18324b14;
+    }
+    h1 { color: #18324b; }
+    label { display: block; margin: 18px 0 7px; font-weight: 600; }
+    input {
+      width: 100%; padding: 12px; border: 1px solid #dce5eb;
+      border-radius: 8px; font-size: 15px;
+    }
+    button {
+      width: 100%; margin-top: 22px; padding: 13px; border: 0;
+      border-radius: 8px; background: #18324b; color: white;
+      font-weight: bold; cursor: pointer;
+    }
+    .error { padding: 12px; border-radius: 8px; background: #fff4f3; color: #a53d3d; }
+    a { color: #278b83; }
+  </style>
+</head>
+<body>
+  <main class="card">
+    <h1>Админ нэвтрэх</h1>
+    {% for category, message in get_flashed_messages(with_categories=true) %}
+      <p class="{{ category }}">{{ message }}</p>
+    {% endfor %}
+    <form method="post">
+      <label for="username">Нэвтрэх нэр</label>
+      <input id="username" name="username" autocomplete="username" required>
+
+      <label for="password">Нууц үг</label>
+      <input id="password" name="password" type="password"
+             autocomplete="current-password" required>
+
+      <button type="submit">Нэвтрэх</button>
+    </form>
+    <p><a href="{{ url_for('index') }}">Бүртгэлийн хуудас руу буцах</a></p>
+  </main>
+</body>
+</html>

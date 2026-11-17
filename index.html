@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="mn">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Сайн дурын ажилтны бүртгэл</title>
+  <style>
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      padding: 40px 16px;
+      display: grid;
+      place-items: center;
+      background: #f3f6f8;
+      color: #263746;
+      font-family: Arial, sans-serif;
+    }
+
+    .card {
+      width: 100%;
+      max-width: 600px;
+      padding: 36px;
+      background: #fff;
+      border: 1px solid #dce5eb;
+      border-radius: 16px;
+      box-shadow: 0 16px 40px #18324b14;
+    }
+
+    .eyebrow {
+      margin: 0 0 8px;
+      color: #278b83;
+      font-size: 12px;
+      font-weight: bold;
+      letter-spacing: 1px;
+    }
+
+    h1 { margin: 0; color: #18324b; font-size: 28px; }
+
+    .intro {
+      margin: 12px 0 20px;
+      color: #596b78;
+      font-size: 15px;
+      line-height: 1.65;
+    }
+
+    .info {
+      margin-bottom: 24px;
+      padding: 18px;
+      border: 1px solid #dcebe8;
+      border-radius: 10px;
+      background: #f4faf9;
+    }
+
+    .info h2 {
+      margin: 0 0 9px;
+      color: #18324b;
+      font-size: 16px;
+    }
+
+    .info p {
+      margin: 0;
+      color: #596b78;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    .info ul {
+      margin: 10px 0 0;
+      padding-left: 20px;
+      color: #596b78;
+      font-size: 14px;
+      line-height: 1.7;
+    }
+
+    .notice {
+      margin-top: 12px !important;
+      font-size: 12px !important;
+      color: #718096 !important;
+    }
+
+    label {
+      display: block;
+      margin: 16px 0 7px;
+      color: #18324b;
+      font-weight: 600;
+    }
+
+    input {
+      width: 100%;
+      padding: 12px;
+      border: 1px solid #dce5eb;
+      border-radius: 8px;
+      font-size: 15px;
+    }
+
+    input:focus {
+      outline: 2px solid #278b8350;
+      border-color: #278b83;
+    }
+
+    .hint {
+      display: block;
+      margin-top: 6px;
+      color: #718096;
+      font-size: 12px;
+    }
+
+    button {
+      width: 100%;
+      margin-top: 22px;
+      padding: 13px;
+      border: 0;
+      border-radius: 8px;
+      background: #18324b;
+      color: white;
+      font-size: 15px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    button:hover { background: #278b83; }
+
+    .message {
+      margin: 16px 0;
+      padding: 12px;
+      border-radius: 8px;
+      line-height: 1.5;
+    }
+
+    .success { background: #effaf5; color: #17684f; }
+    .error { background: #fff4f3; color: #a53d3d; }
+
+    .admin-link {
+      display: block;
+      margin-top: 20px;
+      color: #718096;
+      text-align: center;
+      font-size: 13px;
+    }
+
+    @media (max-width: 480px) {
+      body { padding: 20px 12px; }
+      .card { padding: 25px 20px; }
+      h1 { font-size: 24px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="card">
+    <p class="eyebrow">НИЙГМИЙН САЙН ДУРЫН АЖИЛ</p>
+    <h1>Сайн дурын ажилтны бүртгэл</h1>
+    <p class="intro">
+      Нийгэмдээ эерэг хувь нэмэр оруулах хүсэлтэй хүн бүрийг сайн дурын
+      ажилтнаар бүртгэж байна. Та мэдээллээ үлдээснээр сайн дурын ажил,
+      арга хэмжээний талаар холбогдох боломжтой.
+    </p>
+
+    <section class="info" aria-labelledby="about-title">
+      <h2 id="about-title">Юунд бүртгүүлж байна вэ?</h2>
+      <p>
+        Энэ бүртгэл нь нийгэмд чиглэсэн сайн дурын ажилд оролцох хүсэлтэй
+        хүмүүсийн мэдээллийг авах зорилготой. Боломжит ажлын жишээ:
+      </p>
+      <ul>
+        <li>Олон нийтэд чиглэсэн арга хэмжээ, үйл ажиллагаанд туслах</li>
+        <li>Орчны цэвэрлэгээ, байгаль хамгаалах ажилд оролцох</li>
+        <li>Мэдээлэл түгээх, нөлөөллийн ажилд дэмжлэг үзүүлэх</li>
+        <li>Орон нутаг, иргэдэд чиглэсэн сайн дурын санаачилгыг дэмжих</li>
+      </ul>
+      <p class="notice">
+        Таны үлдээсэн холбоо барих мэдээллийг боломжит ажил, арга хэмжээний
+        талаар холбогдоход ашиглана. Бүртгүүлснээр тодорхой нэг ажилд
+        шууд хуваарилагдахгүй.
+      </p>
+    </section>
+
+    {% if success %}
+      <div class="message success" role="status">
+        Бүртгэл амжилттай хийгдлээ. Сайн дурын ажилд оролцох сонирхлоо
+        илэрхийлсэнд баярлалаа.
+      </div>
+    {% endif %}
+
+    {% if errors %}
+      <div class="message error" role="alert">
+        <ul>
+          {% for error in errors %}
+            <li>{{ error }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+    {% endif %}
+
+    <form method="post">
+      <label for="last_name">Овог</label>
+      <input id="last_name" name="last_name" type="text"
+             value="{{ values.last_name }}" required maxlength="100">
+
+      <label for="first_name">Нэр</label>
+      <input id="first_name" name="first_name" type="text"
+             value="{{ values.first_name }}" required maxlength="100">
+
+      <label for="phone">Утасны дугаар</label>
+      <input id="phone" name="phone" type="tel"
+             value="{{ values.phone }}" placeholder="+976 9911 2233"
+             required maxlength="20">
+
+      <label for="email">Имэйл хаяг</label>
+      <input id="email" name="email" type="email"
+             value="{{ values.email }}" placeholder="ner@company.mn"
+             required maxlength="254">
+      <small class="hint">Форматын жишээ: ner@company.mn</small>
+
+      <button type="submit">Сайн дурын ажилтнаар бүртгүүлэх</button>
+    </form>
+
+    <a class="admin-link" href="{{ url_for('admin_login') }}">Админ нэвтрэх</a>
+  </main>
+</body>
+</html>
