@@ -41,8 +41,6 @@ EMAIL_PATTERN = re.compile(
 # Нууц үгийг plaintext хэлбэрээр хадгалахгүй.
 ADMIN_PASSWORD_HASH = generate_password_hash(ADMIN_PASSWORD)
 
-# Эдгээр нь зөвхөн нэмэгдэх баганууд. Одоо байгаа бүртгэлийн багануудыг
-# өөрчлөхгүй бөгөөд хуучин мөрүүд default утгатай хэвээр үлдэнэ.
 REGISTRATION_MIGRATION_COLUMNS = {
     "activity_interests": "TEXT NOT NULL DEFAULT '[]'",
     "availability": "TEXT NOT NULL DEFAULT ''",
@@ -109,14 +107,8 @@ def backup_database():
 
 
 def migrate_database():
-    """Хуучин өгөгдлийг хадгалж, шинэ Volunteer Connect багануудыг нэмнэ.
-
-    Багана бүрийг PRAGMA table_info-оор шалгадаг тул дахин ажиллуулахад
-    өөрчлөлт давхардахгүй. Бодит schema-г мэдэхгүй эсвэл хүснэгт байхгүй
-    тохиолдолд шинэ/хоосон DB үүсгэхийн оронд алдаа өгч зогсоно.
-    """
+    """Хуучин өгөгдлийг хадгалж, шинэ Volunteer Connect багануудыг нэмнэ."""
     connection = _connect_existing_database()
-    backup_path = None
     try:
         table_exists = connection.execute(
             "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?",
@@ -137,25 +129,19 @@ def migrate_database():
             for name, definition in REGISTRATION_MIGRATION_COLUMNS.items()
             if name not in existing_columns
         }
-
-        # Бүх багана аль хэдийн байгаа бол backup дахин үүсгэхгүй, DB-г өөрчлөхгүй.
         if not missing_columns:
             return None
 
-        # Өөрчлөлт хийхийн өмнөх DB-г тусдаа файлд бүрэн хуулна.
         backup_path = backup_database()
-
         connection.execute("BEGIN IMMEDIATE")
         for name, definition in missing_columns.items():
-            # Багана/definition нь дээрх тогтмол dict-ээс авсан тул SQL-д хэрэглэж болно.
             connection.execute(
                 f"ALTER TABLE registrations ADD COLUMN {name} {definition}"
             )
         connection.commit()
         app.logger.info(
             "SQLite migration амжилттай. Нэмсэн багана: %s; backup: %s",
-            ", ".join(missing_columns),
-            backup_path,
+            ", ".join(missing_columns), backup_path,
         )
         return backup_path
     except Exception:
@@ -175,6 +161,32 @@ def new_registration_token():
     return token
 
 
+def get_admin_csrf_token():
+    token = session.get("admin_csrf_token")
+    if not token:
+        token = secrets.token_urlsafe(32)
+        session["admin_csrf_token"] = token
+    return token
+
+
+def validate_admin_csrf_token():
+    submitted = request.form.get("csrf_token", "")
+    expected = session.get("admin_csrf_token", "")
+    if not submitted or not expected or not secrets.compare_digest(submitted, expected):
+        abort(400, description="Хүсэлтийн хамгаалалтын token хүчингүй байна. Хуудсаа шинэчлээд дахин оролдоно уу.")
+
+
+def decode_interests(raw_value):
+    """JSON талбарын утгыг аюулгүйгээр жагсаалт болгон уншина."""
+    try:
+        decoded = json.loads(raw_value or "[]")
+    except (TypeError, json.JSONDecodeError):
+        return []
+    if not isinstance(decoded, list):
+        return []
+    return [str(item) for item in decoded]
+
+
 def admin_required():
     if not session.get("is_admin"):
         return redirect(url_for("admin_login", next=request.path))
@@ -184,13 +196,8 @@ def admin_required():
 @app.route("/", methods=["GET", "POST"])
 def index():
     values = {
-        "last_name": "",
-        "first_name": "",
-        "phone": "",
-        "email": "",
-        "activity_interests": [],
-        "availability": "",
-        "motivation": "",
+        "last_name": "", "first_name": "", "phone": "", "email": "",
+        "activity_interests": [], "availability": "", "motivation": "",
         "privacy_consent": False,
     }
     errors = []
@@ -210,51 +217,39 @@ def index():
         submitted_token = request.form.get("registration_token", "")
         expected_token = session.pop("registration_token", None)
         valid_token = bool(
-            submitted_token
-            and expected_token
+            submitted_token and expected_token
             and secrets.compare_digest(submitted_token, expected_token)
         )
         if not valid_token:
             errors.append("Маягтыг дахин илгээхээс өмнө хуудсаа шинэчилнэ үү.")
-
         if not values["last_name"]:
             errors.append("Овгоо оруулна уу.")
         elif len(values["last_name"]) > 100:
             errors.append("Овог 100 тэмдэгтээс урт байж болохгүй.")
-
         if not values["first_name"]:
             errors.append("Нэрээ оруулна уу.")
         elif len(values["first_name"]) > 100:
             errors.append("Нэр 100 тэмдэгтээс урт байж болохгүй.")
 
         digits = re.sub(r"\D", "", values["phone"])
-        if not re.fullmatch(r"[0-9+()\-\s]{6,20}", values["phone"]) or not (
-            6 <= len(digits) <= 15
-        ):
+        if not re.fullmatch(r"[0-9+()\-\s]{6,20}", values["phone"]) or not (6 <= len(digits) <= 15):
             errors.append("Утасны дугаараа зөв оруулна уу.")
-
-        if (
-            len(values["email"]) > 254
-            or not EMAIL_PATTERN.fullmatch(values["email"])
-        ):
+        if len(values["email"]) > 254 or not EMAIL_PATTERN.fullmatch(values["email"]):
             errors.append("Имэйл хаягийн форматаа шалгана уу. Жишээ: ner@company.mn")
 
-        selected_interests = values["activity_interests"]
-        if not selected_interests:
+        selected = values["activity_interests"]
+        if not selected:
             errors.append("Сонирхож буй ажлын чиглэлээс дор хаяж нэгийг сонгоно уу.")
-        elif any(choice not in ACTIVITY_CHOICES for choice in selected_interests):
+        elif any(item not in ACTIVITY_CHOICES for item in selected):
             errors.append("Сонгосон ажлын чиглэлийн утга буруу байна.")
-        elif len(selected_interests) != len(set(selected_interests)):
+        elif len(selected) != len(set(selected)):
             errors.append("Ажлын чиглэлийг давхар сонгож болохгүй.")
-
         if values["availability"] not in AVAILABILITY_CHOICES:
             errors.append("Оролцох боломжтой цагаа сонгоно уу.")
-
         if not values["motivation"]:
             errors.append("Сайн дурын ажил хийх болсон шалтгаанаа бичнэ үү.")
         elif len(values["motivation"]) > 2000:
             errors.append("Шалтгаан 2000 тэмдэгтээс урт байж болохгүй.")
-
         if not values["privacy_consent"]:
             errors.append("Хувийн мэдээлэл ашиглах зөвшөөрөл өгөх шаардлагатай.")
 
@@ -263,24 +258,16 @@ def index():
             try:
                 with get_db() as connection:
                     connection.execute(
-                        """
-                        INSERT INTO registrations (
+                        """INSERT INTO registrations (
                             last_name, first_name, phone, email, created_at,
                             activity_interests, availability, motivation,
                             privacy_consent, consent_at
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                        """,
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                         (
-                            values["last_name"],
-                            values["first_name"],
-                            values["phone"],
-                            values["email"],
-                            datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                            json.dumps(selected_interests, ensure_ascii=False),
-                            values["availability"],
-                            values["motivation"],
-                            1,
-                            consent_at,
+                            values["last_name"], values["first_name"], values["phone"],
+                            values["email"], datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                            json.dumps(selected, ensure_ascii=False), values["availability"],
+                            values["motivation"], 1, consent_at,
                         ),
                     )
                 return redirect(url_for("index", success="1"))
@@ -288,12 +275,9 @@ def index():
                 app.logger.exception("Бүртгэлийг SQLite-д хадгалж чадсангүй.")
                 errors.append("Бүртгэх үед алдаа гарлаа. Таны оруулсан мэдээллийг хадгалсангүй.")
 
-    # POST алдаатай байсан ч хэрэглэгч засварлаад дахин илгээх шинэ token олгоно.
     registration_token = new_registration_token()
     return render_template(
-        "index.html",
-        values=values,
-        errors=errors,
+        "index.html", values=values, errors=errors,
         success=request.args.get("success") == "1",
         activity_choices=ACTIVITY_CHOICES,
         availability_choices=AVAILABILITY_CHOICES,
@@ -305,25 +289,17 @@ def index():
 def admin_login():
     if session.get("is_admin"):
         return redirect(url_for("admin"))
-
     if request.method == "POST":
         username = request.form.get("username", "")
         password = request.form.get("password", "")
-
-        if (
-            secrets.compare_digest(username, ADMIN_USERNAME)
-            and check_password_hash(ADMIN_PASSWORD_HASH, password)
-        ):
+        if secrets.compare_digest(username, ADMIN_USERNAME) and check_password_hash(ADMIN_PASSWORD_HASH, password):
             session.clear()
             session["is_admin"] = True
             next_url = request.args.get("next", "")
-            # Гаднын URL руу redirect хийхээс хамгаална.
             if next_url.startswith("/") and not next_url.startswith("//"):
                 return redirect(next_url)
             return redirect(url_for("admin"))
-
         flash("Нэвтрэх нэр эсвэл нууц үг буруу байна.", "error")
-
     return render_template("login.html")
 
 
@@ -333,16 +309,101 @@ def admin():
     if auth_redirect:
         return auth_redirect
 
+    search = request.args.get("q", "").strip()[:100]
+    with get_db() as connection:
+        total_count = connection.execute(
+            "SELECT COUNT(*) FROM registrations"
+        ).fetchone()[0]
+        all_rows = connection.execute(
+            "SELECT activity_interests FROM registrations"
+        ).fetchall()
+        activity_counts = {choice: 0 for choice in ACTIVITY_CHOICES}
+        for row in all_rows:
+            for interest in set(decode_interests(row["activity_interests"])):
+                if interest in activity_counts:
+                    activity_counts[interest] += 1
+
+        if search:
+            escaped = search.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+            pattern = f"%{escaped}%"
+            registrations = connection.execute(
+                """SELECT id, last_name, first_name, phone, email, created_at,
+                          activity_interests, availability
+                   FROM registrations
+                   WHERE last_name LIKE ? ESCAPE '\\'
+                      OR first_name LIKE ? ESCAPE '\\'
+                      OR phone LIKE ? ESCAPE '\\'
+                      OR email LIKE ? ESCAPE '\\'
+                   ORDER BY id DESC""",
+                (pattern, pattern, pattern, pattern),
+            ).fetchall()
+        else:
+            registrations = connection.execute(
+                """SELECT id, last_name, first_name, phone, email, created_at,
+                          activity_interests, availability
+                   FROM registrations ORDER BY id DESC"""
+            ).fetchall()
+
+    return render_template(
+        "admin.html", registrations=registrations, total_count=total_count,
+        activity_counts=activity_counts, search=search,
+        csrf_token=get_admin_csrf_token(), detail=None,
+    )
+
+
+@app.route("/admin/registration/<int:registration_id>", methods=["GET"])
+def admin_registration_detail(registration_id):
+    auth_redirect = admin_required()
+    if auth_redirect:
+        return auth_redirect
+    with get_db() as connection:
+        detail = connection.execute(
+            """SELECT id, last_name, first_name, phone, email, created_at,
+                      activity_interests, availability, motivation,
+                      privacy_consent, consent_at
+               FROM registrations WHERE id = ?""",
+            (registration_id,),
+        ).fetchone()
+    if detail is None:
+        abort(404)
+
+    interests = decode_interests(detail["activity_interests"])
+    # Keep dashboard/list visible; detail page is rendered by the same template.
     with get_db() as connection:
         registrations = connection.execute(
-            """
-            SELECT id, last_name, first_name, phone, email, created_at
-            FROM registrations
-            ORDER BY id DESC
-            """
+            """SELECT id, last_name, first_name, phone, email, created_at,
+                      activity_interests, availability
+               FROM registrations ORDER BY id DESC"""
         ).fetchall()
+        total_count = connection.execute("SELECT COUNT(*) FROM registrations").fetchone()[0]
+        rows = connection.execute("SELECT activity_interests FROM registrations").fetchall()
+    activity_counts = {choice: 0 for choice in ACTIVITY_CHOICES}
+    for row in rows:
+        for interest in set(decode_interests(row["activity_interests"])):
+            if interest in activity_counts:
+                activity_counts[interest] += 1
+    return render_template(
+        "admin.html", registrations=registrations, total_count=total_count,
+        activity_counts=activity_counts, search="", csrf_token=get_admin_csrf_token(),
+        detail=detail, detail_interests=interests,
+    )
 
-    return render_template("admin.html", registrations=registrations)
+
+@app.route("/admin/registration/<int:registration_id>/delete", methods=["POST"])
+def admin_delete_registration(registration_id):
+    auth_redirect = admin_required()
+    if auth_redirect:
+        return auth_redirect
+    validate_admin_csrf_token()
+    with get_db() as connection:
+        cursor = connection.execute(
+            "DELETE FROM registrations WHERE id = ?", (registration_id,)
+        )
+        deleted = cursor.rowcount
+    if not deleted:
+        abort(404)
+    flash("Бүртгэлийг амжилттай устгалаа.", "success")
+    return redirect(url_for("admin"))
 
 
 @app.route("/admin/export", methods=["GET"])
@@ -350,42 +411,40 @@ def export_excel():
     auth_redirect = admin_required()
     if auth_redirect:
         return auth_redirect
-
     with get_db() as connection:
         registrations = connection.execute(
-            """
-            SELECT id, last_name, first_name, phone, email, created_at
-            FROM registrations
-            ORDER BY id ASC
-            """
+            """SELECT id, last_name, first_name, phone, email, created_at,
+                      activity_interests, availability, motivation,
+                      privacy_consent, consent_at
+               FROM registrations ORDER BY id ASC"""
         ).fetchall()
 
     workbook = Workbook()
     sheet = workbook.active
     sheet.title = "Бүртгэл"
-    sheet.append(["№", "Овог", "Нэр", "Утасны дугаар", "Имэйл", "Бүртгэсэн огноо"])
-
+    sheet.append([
+        "№", "Овог", "Нэр", "Утасны дугаар", "И-мэйл",
+        "Сонирхож буй чиглэл", "Оролцох боломжтой цаг", "Шалтгаан",
+        "Хувийн мэдээлэл ашиглах зөвшөөрөл", "Зөвшөөрөл өгсөн огноо", "Бүртгэсэн огноо",
+    ])
     for row in registrations:
         sheet.append([
-            row["id"],
-            row["last_name"],
-            row["first_name"],
-            row["phone"],
-            row["email"],
-            row["created_at"],
+            row["id"], row["last_name"], row["first_name"], row["phone"], row["email"],
+            ", ".join(decode_interests(row["activity_interests"])), row["availability"],
+            row["motivation"], "Тийм" if row["privacy_consent"] else "Үгүй",
+            row["consent_at"] or "", row["created_at"],
         ])
-
-    for column, width in {"A": 8, "B": 22, "C": 22, "D": 22, "E": 32, "F": 22}.items():
+    for column, width in {
+        "A": 8, "B": 22, "C": 22, "D": 22, "E": 32, "F": 38,
+        "G": 28, "H": 50, "I": 30, "J": 26, "K": 22,
+    }.items():
         sheet.column_dimensions[column].width = width
 
     output = io.BytesIO()
     workbook.save(output)
     output.seek(0)
-
     return send_file(
-        output,
-        as_attachment=True,
-        download_name="Register.xlsx",
+        output, as_attachment=True, download_name="Register.xlsx",
         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     )
 
@@ -399,8 +458,6 @@ def admin_logout():
     return redirect(url_for("admin_login"))
 
 
-# Байгаа DB-д migration хийнэ. DB байхгүй эсвэл schema тохирохгүй бол
-# автоматаар хоосон DB үүсгэхгүй, алдаатайгаар ил тод зогсоно.
 migrate_database()
 
 if __name__ == "__main__":

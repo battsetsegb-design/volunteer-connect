@@ -3,25 +3,41 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Админ — бүртгэлүүд</title>
+  <title>Volunteer Connect — Админ</title>
   <style>
     * { box-sizing: border-box; }
-    body { margin: 0; padding: 32px; background: #f3f6f8; color: #263746; font-family: Arial, sans-serif; }
-    .container { max-width: 1200px; margin: auto; }
+    body { margin: 0; padding: 28px; background: #f3f6f8; color: #263746; font-family: Arial, sans-serif; }
+    .container { max-width: 1440px; margin: auto; }
     header { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; }
-    h1 { color: #18324b; }
-    .actions { display: flex; gap: 10px; align-items: center; }
-    .button {
-      display: inline-block; padding: 10px 14px; border: 0; border-radius: 8px;
-      background: #18324b; color: white; text-decoration: none; cursor: pointer;
-    }
+    h1, h2, h3 { color: #18324b; }
+    h1 { margin-bottom: 6px; }
+    .muted { color: #718096; }
+    .actions, .search-form { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    .button { display: inline-block; padding: 10px 14px; border: 0; border-radius: 8px; background: #18324b; color: white; text-decoration: none; cursor: pointer; font: inherit; }
     .button:hover { background: #278b83; }
     .logout { background: #718096; }
-    .table-wrap { overflow-x: auto; margin-top: 20px; background: white; border: 1px solid #dce5eb; border-radius: 12px; }
-    table { width: 100%; border-collapse: collapse; min-width: 700px; }
-    th, td { padding: 13px 15px; border-bottom: 1px solid #e8edf1; text-align: left; }
-    th { background: #18324b; color: white; font-size: 13px; }
+    .delete { background: #a53d3d; }
+    .delete:hover { background: #862f2f; }
+    .search-form { margin: 20px 0; }
+    .search-form input { width: min(420px, 70vw); padding: 11px 12px; border: 1px solid #dce5eb; border-radius: 8px; font: inherit; }
+    .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; margin: 18px 0; }
+    .stat-card { padding: 16px; border: 1px solid #dce5eb; border-radius: 12px; background: white; }
+    .stat-card strong { display: block; margin-top: 6px; color: #18324b; font-size: 24px; }
+    .table-wrap { overflow-x: auto; margin-top: 18px; background: white; border: 1px solid #dce5eb; border-radius: 12px; }
+    table { width: 100%; border-collapse: collapse; min-width: 1100px; }
+    th, td { padding: 12px 13px; border-bottom: 1px solid #e8edf1; text-align: left; vertical-align: top; }
+    th { background: #18324b; color: white; font-size: 13px; white-space: nowrap; }
+    td { font-size: 14px; }
+    .row-actions { display: flex; gap: 7px; align-items: center; }
+    .small-button { padding: 7px 9px; font-size: 13px; }
+    .flash { margin: 14px 0; padding: 12px; border-radius: 8px; background: #effaf5; color: #17684f; }
     .empty { padding: 24px; color: #718096; }
+    .detail-card { margin: 22px 0; padding: 20px; border: 1px solid #dce5eb; border-radius: 12px; background: white; }
+    .detail-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
+    .detail-item { overflow-wrap: anywhere; }
+    .detail-item strong { display: block; margin-bottom: 5px; color: #18324b; }
+    .detail-wide { grid-column: 1 / -1; white-space: pre-wrap; }
+    .detail-header { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
     @media (max-width: 600px) { body { padding: 18px 12px; } }
   </style>
 </head>
@@ -29,8 +45,9 @@
   <main class="container">
     <header>
       <div>
-        <h1>Бүртгэгдсэн мэдээлэл</h1>
-        <p>Нийт бүртгэл: {{ registrations|length }}</p>
+        <p class="muted">VOLUNTEER CONNECT · АДМИН</p>
+        <h1>Бүртгэгдсэн сайн дурын ажилтнууд</h1>
+        <p class="muted">Нийт бүртгэл: <strong>{{ total_count }}</strong></p>
       </div>
       <div class="actions">
         <a class="button" href="{{ url_for('export_excel') }}">Excel татах</a>
@@ -40,30 +57,84 @@
       </div>
     </header>
 
+    {% for category, message in get_flashed_messages(with_categories=true) %}
+      <div class="flash" role="status">{{ message }}</div>
+    {% endfor %}
+
+    <section aria-labelledby="stats-heading">
+      <h2 id="stats-heading">Үйл ажиллагааны чиглэлийн статистик</h2>
+      <div class="stats">
+        {% for category, count in activity_counts.items() %}
+          <div class="stat-card"><span>{{ category }}</span><strong>{{ count }}</strong><span class="muted">хүн</span></div>
+        {% endfor %}
+      </div>
+    </section>
+
+    {% if detail %}
+      <section class="detail-card" aria-labelledby="detail-heading">
+        <div class="detail-header">
+          <h2 id="detail-heading">Бүртгэлийн дэлгэрэнгүй · №{{ detail.id }}</h2>
+          <a class="button" href="{{ url_for('admin') }}">Жагсаалт руу буцах</a>
+        </div>
+        <div class="detail-grid">
+          <div class="detail-item"><strong>Овог</strong>{{ detail.last_name }}</div>
+          <div class="detail-item"><strong>Нэр</strong>{{ detail.first_name }}</div>
+          <div class="detail-item"><strong>Утас</strong>{{ detail.phone }}</div>
+          <div class="detail-item"><strong>И-мэйл</strong>{{ detail.email }}</div>
+          <div class="detail-item"><strong>Сонгосон бүх чиглэл</strong>{{ detail_interests|join(', ') if detail_interests else '—' }}</div>
+          <div class="detail-item"><strong>Оролцох боломжтой цаг</strong>{{ detail.availability or '—' }}</div>
+          <div class="detail-item detail-wide"><strong>Сайн дурын ажил хийх шалтгаан</strong>{{ detail.motivation or '—' }}</div>
+          <div class="detail-item"><strong>Хувийн мэдээлэл ашиглах зөвшөөрөл</strong>{{ 'Зөвшөөрсөн' if detail.privacy_consent else 'Зөвшөөрөөгүй' }}</div>
+          <div class="detail-item"><strong>Зөвшөөрөл өгсөн огноо</strong>{{ detail.consent_at or '—' }}</div>
+          <div class="detail-item"><strong>Бүртгэсэн огноо</strong>{{ detail.created_at }}</div>
+        </div>
+      </section>
+    {% endif %}
+
+    <form class="search-form" method="get" action="{{ url_for('admin') }}">
+      <input type="search" name="q" value="{{ search }}" placeholder="Овог, нэр, утас эсвэл и-мэйлээр хайх" aria-label="Бүртгэл хайх">
+      <button class="button" type="submit">Хайх</button>
+      {% if search %}<a class="button logout" href="{{ url_for('admin') }}">Цэвэрлэх</a>{% endif %}
+    </form>
+
     {% if registrations %}
       <div class="table-wrap">
         <table>
           <thead>
             <tr>
-              <th>№</th><th>Овог</th><th>Нэр</th><th>Утас</th><th>Имэйл</th><th>Огноо</th>
+              <th>№</th><th>Овог</th><th>Нэр</th><th>Утас</th><th>И-мэйл</th>
+              <th>Сонирхож буй чиглэл</th><th>Боломжтой цаг</th><th>Бүртгэсэн огноо</th><th>Үйлдэл</th>
             </tr>
           </thead>
           <tbody>
             {% for row in registrations %}
+              {% set interests = row.activity_interests|default('[]', true) %}
               <tr>
                 <td>{{ row.id }}</td>
                 <td>{{ row.last_name }}</td>
                 <td>{{ row.first_name }}</td>
                 <td>{{ row.phone }}</td>
                 <td>{{ row.email }}</td>
+                <td>{{ interests }}</td>
+                <td>{{ row.availability or '—' }}</td>
                 <td>{{ row.created_at }}</td>
+                <td>
+                  <div class="row-actions">
+                    <a class="button small-button" href="{{ url_for('admin_registration_detail', registration_id=row.id) }}">Дэлгэрэнгүй</a>
+                    <form method="post" action="{{ url_for('admin_delete_registration', registration_id=row.id) }}"
+                          onsubmit="return confirm('Энэ бүртгэлийг устгахдаа итгэлтэй байна уу?');">
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                      <button class="button delete small-button" type="submit">Устгах</button>
+                    </form>
+                  </div>
+                </td>
               </tr>
             {% endfor %}
           </tbody>
         </table>
       </div>
     {% else %}
-      <p class="empty">Одоогоор бүртгэл алга байна.</p>
+      <p class="empty">{% if search %}Хайлтад тохирох бүртгэл олдсонгүй.{% else %}Одоогоор бүртгэл алга байна.{% endif %}</p>
     {% endif %}
   </main>
 </body>
