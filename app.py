@@ -40,25 +40,115 @@ EMAIL_PATTERN = re.compile(
 # Нууц үгийг plaintext хэлбэрээр хадгалахгүй.
 ADMIN_PASSWORD_HASH = generate_password_hash(ADMIN_PASSWORD)
 
+# Эдгээр нь зөвхөн нэмэгдэх баганууд. Одоо байгаа бүртгэлийн багануудыг
+# өөрчлөхгүй бөгөөд хуучин мөрүүд default утгатай хэвээр үлдэнэ.
+REGISTRATION_MIGRATION_COLUMNS = {
+    "activity_interests": "TEXT NOT NULL DEFAULT '[]'",
+    "availability": "TEXT NOT NULL DEFAULT ''",
+    "motivation": "TEXT NOT NULL DEFAULT ''",
+    "privacy_consent": "INTEGER NOT NULL DEFAULT 0",
+    "consent_at": "TEXT",
+}
 
-def get_db():
-    connection = sqlite3.connect(DATABASE)
+
+def _connect_existing_database():
+    """Зөвхөн байгаа DB-г нээнэ; байхгүй бол шинээр хоосон файл үүсгэхгүй."""
+    if not DATABASE.is_file():
+        raise FileNotFoundError(
+            f"Өгөгдлийн сан олдсонгүй: {DATABASE}. "
+            "Одоо ашиглаж буй Register.db файлыг төслийн хавтсанд байрлуулна уу."
+        )
+
+    database_uri = DATABASE.resolve().as_uri() + "?mode=rw"
+    connection = sqlite3.connect(database_uri, uri=True, timeout=30)
     connection.row_factory = sqlite3.Row
     return connection
 
 
-def init_db():
-    with get_db() as connection:
-        connection.execute("""
-            CREATE TABLE IF NOT EXISTS registrations (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                last_name TEXT NOT NULL,
-                first_name TEXT NOT NULL,
-                phone TEXT NOT NULL,
-                email TEXT NOT NULL,
-                created_at TEXT NOT NULL
+def backup_database():
+    """Одоо байгаа SQLite санг SQLite backup API ашиглан хуулбарлана."""
+    source = _connect_existing_database()
+    backup_path = DATABASE.with_name(
+        f"{DATABASE.stem}.backup-{datetime.now().strftime('%Y%m%d-%H%M%S-%f')}"
+        f"-{secrets.token_hex(4)}{DATABASE.suffix}"
+    )
+    destination = None
+    try:
+        destination = sqlite3.connect(backup_path)
+        source.backup(destination)
+        destination.commit()
+    except Exception:
+        if destination is not None:
+            destination.close()
+        source.close()
+        if backup_path.exists():
+            backup_path.unlink()
+        raise
+    else:
+        destination.close()
+        source.close()
+    return backup_path
+
+
+def migrate_database():
+    """Хуучин өгөгдлийг хадгалж, шинэ Volunteer Connect багануудыг нэмнэ.
+
+    Багана бүрийг PRAGMA table_info-оор шалгадаг тул дахин ажиллуулахад
+    өөрчлөлт давхардахгүй. Бодит schema-г мэдэхгүй эсвэл хүснэгт байхгүй
+    тохиолдолд шинэ/хоосон DB үүсгэхийн оронд алдаа өгч зогсоно.
+    """
+    connection = _connect_existing_database()
+    backup_path = None
+    try:
+        table_exists = connection.execute(
+            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?",
+            ("registrations",),
+        ).fetchone()
+        if table_exists is None:
+            raise RuntimeError(
+                "Register.db дотор registrations хүснэгт олдсонгүй; "
+                "өгөгдлийн санг өөрчлөлгүй үлдээлээ."
             )
-        """)
+
+        existing_columns = {
+            row["name"]
+            for row in connection.execute("PRAGMA table_info(registrations)")
+        }
+        missing_columns = {
+            name: definition
+            for name, definition in REGISTRATION_MIGRATION_COLUMNS.items()
+            if name not in existing_columns
+        }
+
+        # Бүх багана аль хэдийн байгаа бол backup дахин үүсгэхгүй, DB-г өөрчлөхгүй.
+        if not missing_columns:
+            return None
+
+        # Өөрчлөлт хийхийн өмнөх DB-г тусдаа файлд бүрэн хуулна.
+        backup_path = backup_database()
+
+        connection.execute("BEGIN IMMEDIATE")
+        for name, definition in missing_columns.items():
+            # Багана/definition нь дээрх тогтмол dict-ээс авсан тул SQL-д хэрэглэж болно.
+            connection.execute(
+                f"ALTER TABLE registrations ADD COLUMN {name} {definition}"
+            )
+        connection.commit()
+        app.logger.info(
+            "SQLite migration амжилттай. Нэмсэн багана: %s; backup: %s",
+            ", ".join(missing_columns),
+            backup_path,
+        )
+        return backup_path
+    except Exception:
+        connection.rollback()
+        raise
+    finally:
+        connection.close()
+
+
+def get_db():
+    return _connect_existing_database()
 
 
 def admin_required():
@@ -222,7 +312,9 @@ def admin_logout():
     return redirect(url_for("admin_login"))
 
 
-init_db()
+# Байгаа DB-д migration хийнэ. DB байхгүй эсвэл schema тохирохгүй бол
+# автоматаар хоосон DB үүсгэхгүй, алдаатайгаар ил тод зогсоно.
+migrate_database()
 
 if __name__ == "__main__":
     app.run(debug=True)
